@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>塔罗拉远放大系统 - 边缘无裁剪版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; }
+        
+        #input_video { display: none; }
+        #star-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; }
+
+        /* 顶部上传栏 */
+        .upload-panel {
+            position: fixed; top: 16px; left: 16px; display: flex; gap: 10px; z-index: 999;
+        }
+        .upload-btn {
+            padding: 8px 15px; background: gold; color: #000; border: none; border-radius: 6px;
+            font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.3s;
+        }
+        .upload-btn:hover { background: #fff; box-shadow: 0 0 15px gold; }
+
+        /* 状态指示 */
+        #status-info {
+            position: fixed; top: 16px; right: 16px; background: rgba(0,0,0,0.6);
+            padding: 8px 12px; border-radius: 5px; font-size: 12px; color: #0f0; z-index: 999;
+        }
+
+        /* 增强版手部光标 */
+        #handCursor {
+            position: fixed; width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(255,215,0,0.8); box-shadow: 0 0 15px gold;
+            pointer-events: none; z-index: 9999; transform: translate(-50%, -50%);
+            border: 2px solid #fff; transition: width 0.2s, height 0.2s, background 0.2s;
+        }
+
+        /* 跑马灯盒 */
+        .marquee-box {
+            position: absolute; top: 50%; left: 0; width: 100%; height: 400px;
+            transform: translateY(-50%); 
+            /* 关键修改：取消 overflow: hidden，让卡牌放大时不被裁剪 */
+            display: flex; align-items: center;
+        }
+        .marquee-track {
+            display: flex; gap: 50px; animation: marquee 30s linear infinite; padding: 0 100px;
+        }
+        /* 选中卡牌时停止滚动 */
+        .track-paused { animation-play-state: paused !important; }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* 卡牌样式 */
+        .tarot-card {
+            width: 160px; height: 260px; position: relative; flex-shrink: 0;
+            transform-style: preserve-3d; border-radius: 12px;
+            transition: transform 0.1s linear; /* 缩放必须顺滑 */
+        }
+        .card-front, .card-back {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            border: 2px solid gold; background-size: cover; background-position: center;
+            background-repeat: no-repeat; background-color: #1a1a2e;
+        }
+        .card-back { color: gold; font-weight: bold; font-size: 18px; }
+        .card-front { transform: rotateY(180deg); border-color: #fff; }
+        
+        /* 交互特效 */
+        .card-focus { transform: scale(1.2); box-shadow: 0 0 30px gold; z-index: 5; }
+        
+        /* 选中状态置于最顶层，避免遮挡 */
+        .selected-top { z-index: 1000 !important; }
+
+        /* 提示说明 */
+        .tip {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 40px;
+            color: gold; font-size: 14px; border: 1px solid gold; z-index: 20; line-height: 1.8;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<video id="input_video"></video>
+<div id="star-bg"></div>
+<div id="handCursor"></div>
+
+<div class="upload-panel">
+    <button class="upload-btn" onclick="document.getElementById('backUpload').click()">上传卡背</button>
+    <button class="upload-btn" onclick="document.getElementById('frontUpload').click()">上传多张素材(正面)</button>
+    <input type="file" id="backUpload" style="display:none" accept="image/*">
+    <input type="file" id="frontUpload" style="display:none" accept="image/*" multiple>
+</div>
+
+<div id="status-info">等待手势识别...</div>
+
+<div class="marquee-box">
+    <div class="marquee-track" id="track"></div>
+</div>
+
+<div class="tip">
+    🎯 <b>瞄准</b>：光标变大时代表瞄准卡牌 <br>
+    👌 <b>翻牌</b>：捏住不放，手向后撤(拉远)可放大观察 <br>
+    🖐️ <b>放回</b>：张开五指，卡牌归位并恢复滚动
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+    const track = document.getElementById('track');
+    const cursor = document.getElementById('handCursor');
+    const statusInfo = document.getElementById('status-info');
+
+    let frontImageUrls = [];
+    let backImageUrl = '';
+    
+    let selectedCard = null;
+    let isPinching = false;
+    let baseHandSize = 0; 
+
+    const tarotNames = ["命运", "星辰", "太阳", "月亮", "世界", "审判", "力量", "节制"];
+
+    function buildMarquee() {
+        const items = tarotNames.map((name, i) => {
+            const fStyle = frontImageUrls.length > 0 ? `background-image:url(${frontImageUrls[i % frontImageUrls.length]})` : '';
+            const bStyle = backImageUrl ? `background-image:url(${backImageUrl})` : '';
+            return `
+                <div class="tarot-card" data-idx="${i}">
+                    <div class="card-back" style="${bStyle}">${backImageUrl ? '' : 'TAROT'}</div>
+                    <div class="card-front" style="${fStyle}">${frontImageUrls.length > 0 ? '' : name}</div>
+                </div>
+            `;
+        }).join('');
+        track.innerHTML = items + items; 
+    }
+
+    // 上传图片
+    document.getElementById('backUpload').addEventListener('change', e => {
+        if (e.target.files[0]) {
+            backImageUrl = URL.createObjectURL(e.target.files[0]);
+            buildMarquee();
+        }
+    });
+    document.getElementById('frontUpload').addEventListener('change', e => {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            frontImageUrls.forEach(url => URL.revokeObjectURL(url));
+            frontImageUrls = files.map(file => URL.createObjectURL(file));
+            buildMarquee();
+        }
+    });
+
+    buildMarquee();
+
+    // MediaPipe
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.7
+    });
+
+    hands.onResults(results => {
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+            statusInfo.innerText = "未检测到手部";
+            return;
+        }
+        statusInfo.innerText = "手势交互中";
+        const lm = results.multiHandLandmarks[0];
+        
+        const cx = (1 - lm[8].x) * window.innerWidth;
+        const cy = lm[8].y * window.innerHeight;
+        cursor.style.left = `${cx}px`;
+        cursor.style.top = `${cy}px`;
+
+        const currentHandSize = Math.hypot(lm[2].x - lm[17].x, lm[2].y - lm[17].y);
+        
+        let hovered = null;
+        if (!selectedCard) {
+            const cards = document.querySelectorAll('.tarot-card');
+            cards.forEach(card => {
+                const r = card.getBoundingClientRect();
+                const inHitbox = (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom);
+                if (inHitbox) {
+                    hovered = card;
+                    card.classList.add('card-focus');
+                    cursor.style.width = '45px'; 
+                    cursor.style.height = '45px';
+                } else {
+                    card.classList.remove('card-focus');
+                }
+            });
+            if (!hovered) {
+                cursor.style.width = '20px';
+                cursor.style.height = '20px';
+            }
+        }
+
+        const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y); 
+        const palmOpenDist = Math.hypot(lm[8].x - lm[0].x, lm[8].y - lm[0].y);
+
+        if (pinchDist < 0.045) {
+            if (!isPinching) {
+                isPinching = true;
+                baseHandSize = currentHandSize; 
+                
+                if (hovered && !selectedCard) {
+                    selectedCard = hovered;
+                    selectedCard.classList.add('selected-top');
+                    track.classList.add('track-paused'); 
+                }
+            }
+
+            if (selectedCard) {
+                let depthRatio = baseHandSize / currentHandSize; 
+                let dynamicScale = 1.3 + (depthRatio - 1) * 2.8;
+                
+                // 限制最大为 3.5 倍，防止卡牌超出屏幕顶底边缘
+                dynamicScale = Math.min(Math.max(dynamicScale, 1.3), 3.5); 
+
+                selectedCard.style.transform = `rotateY(180deg) scale(${dynamicScale})`;
+                cursor.style.background = "#00ff00"; 
+            }
+        } else {
+            isPinching = false;
+            if (selectedCard) {
+                selectedCard.style.transform = `rotateY(180deg) scale(1.3)`;
+                cursor.style.background = "rgba(255,215,0,0.8)";
+            }
+        }
+
+        if (palmOpenDist > 0.35) {
+            if (selectedCard) {
+                selectedCard.classList.remove('selected-top');
+                selectedCard.classList.remove('card-focus');
+                selectedCard.style.transform = "rotateY(0deg) scale(1)";
+                selectedCard = null;
+                track.classList.remove('track-paused'); 
+                cursor.style.background = "rgba(255,215,0,0.8)";
+            }
+        }
+    });
+
+    const videoElement = document.getElementById('input_video');
+    const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 640, height: 480
+    });
+    camera.start();
+
+    // 背景星空 (Three.js)
+    const scene = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('star-bg').appendChild(renderer.domElement);
+    const starGeo = new THREE.BufferGeometry();
+    const points = [];
+    for(let i=0; i<3000; i++) points.push((Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40);
+    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const starMesh = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.015 }));
+    scene.add(starMesh);
+    cam.position.z = 5;
+    function animate() { requestAnimationFrame(animate); starMesh.rotation.y += 0.0006; renderer.render(scene, cam); }
+    animate();
+
+    window.onresize = () => {
+        cam.aspect = window.innerWidth / window.innerHeight;
+        cam.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+</script>
+</body>
+</html>
