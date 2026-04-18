@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>塔罗拉远放大系统 - 诊断版</title>
+    <title>我的塔罗占卜网站</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; color: #fff; }
         #input_video { display: none; position: fixed; }
         #star-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; }
 
-        /* 状态指示 */
         #status-info {
             position: fixed; top: 16px; right: 16px; background: rgba(0,0,0,0.6);
             padding: 8px 12px; border-radius: 5px; font-size: 12px; color: #0f0; z-index: 999;
@@ -46,7 +45,6 @@
             border-radius: 12px; display: flex; align-items: center; justify-content: center;
             border: 2px solid gold; background-repeat: no-repeat; background-color: #1a1a2e;
             background-size: 100% 100%; background-position: center;
-            padding: 10px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.5);
         }
         .card-front { transform: rotateY(180deg); border-color: #fff; }
         .card-focus { transform: scale(1.15); box-shadow: 0 0 30px gold; z-index: 5; }
@@ -64,7 +62,7 @@
 <video id="input_video"></video>
 <div id="star-bg"></div>
 <div id="handCursor"></div>
-<div id="status-info">系统检查中...</div>
+<div id="status-info">系统准备就绪</div>
 
 <div class="marquee-box">
     <div class="marquee-track" id="track"></div>
@@ -72,19 +70,15 @@
 
 <div class="tip">
     👌 <b>捏合翻牌</b> 并 <b>向后撤手(拉远)</b> 放大卡牌 <br>
-    🖐️ <b>张开五指</b> 重置
+    🖐️ <b>张开五指</b> 重置卡牌
 </div>
 
-<!-- 依赖 -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<!-- 升级了 Three.js 引用，解决警告 -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 
 <script>
-    // ==========================================
-    // 强制检查：请确认 GitHub 上的图片名完全符合这里！
-    // ==========================================
+    // 配置部分：保持不变，因为路径已经确认正确
     const CONFIG = {
         cardBack: "images/back.jpg",
         cards: [
@@ -100,22 +94,15 @@
     function buildMarquee() {
         const items = CONFIG.cards.map((img, i) => `
             <div class="tarot-card" data-idx="${i}">
-                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')">
-                    <span>若不显图,请检查:<br>${CONFIG.cardBack}</span>
-                </div>
-                <div class="card-front" style="background-image: url('${img}')">
-                    <span>若不显图,请检查:<br>${img}</span>
-                </div>
+                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')"></div>
+                <div class="card-front" style="background-image: url('${img}')"></div>
             </div>
         `).join('');
-        track.innerHTML = items + items;
+        track.innerHTML = items + items + items;
     }
 
     buildMarquee();
 
-    // ==========================================
-    // 手势交互逻辑
-    // ==========================================
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
@@ -131,7 +118,7 @@
             statusInfo.innerText = "未检测到手部";
             return;
         }
-        statusInfo.innerText = "手势识别中";
+        statusInfo.innerText = "识别中...";
         const lm = results.multiHandLandmarks[0];
         const cx = (1 - lm[8].x) * window.innerWidth;
         const cy = lm[8].y * window.innerHeight;
@@ -195,7 +182,7 @@
     });
     camera.start();
 
-    // 背景星空
+    // 背景星空渲染
     const scene = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true });
