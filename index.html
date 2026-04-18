@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>塔罗拉远放大系统 - 完整适配版</title>
+    <title>塔罗拉远放大系统 - 诊断版</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; color: #fff; }
-        
-        /* 隐藏视频流 */
         #input_video { display: none; position: fixed; }
         #star-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; }
 
@@ -18,20 +16,16 @@
             padding: 8px 12px; border-radius: 5px; font-size: 12px; color: #0f0; z-index: 999;
         }
 
-        /* 手部光标 */
         #handCursor {
             position: fixed; width: 20px; height: 20px; border-radius: 50%;
             background: rgba(255,215,0,0.8); box-shadow: 0 0 15px gold;
             pointer-events: none; z-index: 9999; transform: translate(-50%, -50%);
-            border: 2px solid #fff; transition: width 0.2s, height 0.2s, background 0.2s;
+            border: 2px solid #fff; transition: width 0.2s, height 0.2s;
         }
 
-        /* 跑马灯盒 - 允许内容溢出显示，防止放大时被裁剪 */
         .marquee-box {
             position: absolute; top: 50%; left: 0; width: 100%; height: 300px;
-            transform: translateY(-50%); 
-            display: flex; align-items: center;
-            overflow: visible; /* 关键：确保放大后的卡牌不被切断 */
+            transform: translateY(-50%); display: flex; align-items: center; overflow: visible;
         }
         .marquee-track {
             display: flex; gap: 50px; animation: marquee 30s linear infinite; padding: 0 100px;
@@ -43,34 +37,25 @@
             100% { transform: translateX(-50%); }
         }
 
-        /* 卡牌样式 */
         .tarot-card {
             width: 160px; height: 260px; position: relative; flex-shrink: 0;
-            transform-style: preserve-3d; border-radius: 12px;
-            transition: transform 0.15s linear;
+            transform-style: preserve-3d; border-radius: 12px; transition: transform 0.15s linear;
         }
         .card-front, .card-back {
             position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
             border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            border: 2px solid gold;
-            background-repeat: no-repeat;
-            background-color: #1a1a2e;
-            /* 关键修改：100% 100% 确保图片完整显示，不裁剪边缘 */
-            background-size: 100% 100%; 
-            background-position: center;
+            border: 2px solid gold; background-repeat: no-repeat; background-color: #1a1a2e;
+            background-size: 100% 100%; background-position: center;
+            padding: 10px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.5);
         }
         .card-front { transform: rotateY(180deg); border-color: #fff; }
-        
-        /* 交互特效 */
         .card-focus { transform: scale(1.15); box-shadow: 0 0 30px gold; z-index: 5; }
         .selected-top { z-index: 1000 !important; }
 
-        /* 提示说明 */
         .tip {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 40px;
-            color: gold; font-size: 14px; border: 1px solid gold; z-index: 20; line-height: 1.8;
-            text-align: center; width: 80%; max-width: 600px;
+            color: gold; font-size: 14px; border: 1px solid gold; z-index: 20; text-align: center;
         }
     </style>
 </head>
@@ -79,26 +64,26 @@
 <video id="input_video"></video>
 <div id="star-bg"></div>
 <div id="handCursor"></div>
-<div id="status-info">系统初始化...</div>
+<div id="status-info">系统检查中...</div>
 
 <div class="marquee-box">
     <div class="marquee-track" id="track"></div>
 </div>
 
 <div class="tip">
-    🎯 <b>瞄准</b>：光标移到卡牌上 <br>
-    👌 <b>翻牌</b>：捏住并<b>向后撤手(拉远)</b>可放大观察 <br>
-    🖐️ <b>放回</b>：张开五指，卡牌归位
+    👌 <b>捏合翻牌</b> 并 <b>向后撤手(拉远)</b> 放大卡牌 <br>
+    🖐️ <b>张开五指</b> 重置
 </div>
 
-<!-- 加载外部依赖 -->
+<!-- 依赖 -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<!-- 升级了 Three.js 引用，解决警告 -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 
 <script>
     // ==========================================
-    // 配置部分：图片路径 (需与你的 GitHub 文件夹对应)
+    // 强制检查：请确认 GitHub 上的图片名完全符合这里！
     // ==========================================
     const CONFIG = {
         cardBack: "images/back.jpg",
@@ -111,76 +96,66 @@
     const track = document.getElementById('track');
     const cursor = document.getElementById('handCursor');
     const statusInfo = document.getElementById('status-info');
-    const videoElement = document.getElementById('input_video');
 
     function buildMarquee() {
         const items = CONFIG.cards.map((img, i) => `
             <div class="tarot-card" data-idx="${i}">
-                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')"></div>
-                <div class="card-front" style="background-image: url('${img}')"></div>
+                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')">
+                    <span>若不显图,请检查:<br>${CONFIG.cardBack}</span>
+                </div>
+                <div class="card-front" style="background-image: url('${img}')">
+                    <span>若不显图,请检查:<br>${img}</span>
+                </div>
             </div>
         `).join('');
-        // 三倍拷贝确保循环流畅
-        track.innerHTML = items + items + items;
+        track.innerHTML = items + items;
     }
 
     buildMarquee();
 
     // ==========================================
-    // 手势交互核心
+    // 手势交互逻辑
     // ==========================================
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
-    hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.7
-    });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
 
     let selectedCard = null;
     let isPinching = false;
     let baseHandSize = 0;
 
     hands.onResults(results => {
-        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        if (!results.multiHandLandmarks?.length) {
             statusInfo.innerText = "未检测到手部";
             return;
         }
-        statusInfo.innerText = "手势交互中";
+        statusInfo.innerText = "手势识别中";
         const lm = results.multiHandLandmarks[0];
-        
-        // 光标位置
         const cx = (1 - lm[8].x) * window.innerWidth;
         const cy = lm[8].y * window.innerHeight;
         cursor.style.left = `${cx}px`;
         cursor.style.top = `${cy}px`;
 
-        // 手掌大小（深度基准）
         const currentHandSize = Math.hypot(lm[2].x - lm[17].x, lm[2].y - lm[17].y);
         
         let hovered = null;
         if (!selectedCard) {
-            const cards = document.querySelectorAll('.tarot-card');
-            cards.forEach(card => {
+            document.querySelectorAll('.tarot-card').forEach(card => {
                 const r = card.getBoundingClientRect();
                 if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
                     hovered = card;
                     card.classList.add('card-focus');
-                    cursor.style.width = '45px'; cursor.style.height = '45px';
                 } else {
                     card.classList.remove('card-focus');
                 }
             });
-            if (!hovered) { cursor.style.width = '20px'; cursor.style.height = '20px'; }
         }
 
         const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y); 
         const palmOpenDist = Math.hypot(lm[8].x - lm[0].x, lm[8].y - lm[0].y);
 
-        // 捏合逻辑
         if (pinchDist < 0.045) {
             if (!isPinching) {
                 isPinching = true;
@@ -194,7 +169,7 @@
             if (selectedCard) {
                 let ratio = baseHandSize / currentHandSize;
                 let scale = 1.3 + (ratio - 1) * 3.0;
-                scale = Math.min(Math.max(scale, 1.3), 3.8); // 限制最大放大倍数
+                scale = Math.min(Math.max(scale, 1.3), 3.8);
                 selectedCard.style.transform = `rotateY(180deg) scale(${scale})`;
                 cursor.style.background = "#00ff00";
             }
@@ -206,7 +181,6 @@
             }
         }
 
-        // 放回逻辑
         if (palmOpenDist > 0.35 && selectedCard) {
             selectedCard.classList.remove('selected-top');
             selectedCard.style.transform = "rotateY(0deg) scale(1)";
@@ -215,8 +189,8 @@
         }
     });
 
-    const camera = new Camera(videoElement, {
-        onFrame: async () => { await hands.send({image: videoElement}); },
+    const camera = new Camera(document.getElementById('input_video'), {
+        onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); },
         width: 640, height: 480
     });
     camera.start();
@@ -236,12 +210,6 @@
     cam.position.z = 5;
     function animate() { requestAnimationFrame(animate); starMesh.rotation.y += 0.0006; renderer.render(scene, cam); }
     animate();
-
-    window.onresize = () => {
-        cam.aspect = window.innerWidth / window.innerHeight;
-        cam.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    };
 </script>
 </body>
 </html>
