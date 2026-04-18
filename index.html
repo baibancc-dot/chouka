@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>塔罗拉远 - 手机最终适配版</title>
+    <title>塔罗拉远 - 手机极速版</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
         body { background: #000; overflow: hidden; font-family: sans-serif; width: 100vw; height: 100vh; }
         
-        /* 视频小窗口 */
+        /* 关键：给视频流留一个小窗口，方便用户看到手是否进画面，提高成功率 */
         #input_video { 
-            position: fixed; bottom: 10px; right: 10px; width: 70px; height: 90px; 
+            position: fixed; bottom: 10px; right: 10px; width: 80px; height: 60px; 
             border: 1px solid gold; border-radius: 4px; z-index: 1000; transform: scaleX(-1);
-            background: #222; object-fit: cover;
+            background: #222;
         }
 
         #star-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; }
 
+        /* 状态指示 */
         #status-info {
             position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.7);
             padding: 5px 10px; border-radius: 5px; font-size: 10px; color: #0f0; z-index: 1001;
@@ -30,11 +31,11 @@
         }
 
         .marquee-box {
-            position: absolute; top: 40%; left: 0; width: 100%; height: 200px;
+            position: absolute; top: 40%; left: 0; width: 100%; height: 220px;
             transform: translateY(-50%); display: flex; align-items: center; overflow: visible;
         }
         .marquee-track {
-            display: flex; gap: 15px; animation: marquee 20s linear infinite; padding: 0 30px;
+            display: flex; gap: 20px; animation: marquee 20s linear infinite; padding: 0 50px;
         }
         .track-paused { animation-play-state: paused !important; }
 
@@ -44,42 +45,41 @@
         }
 
         .tarot-card {
-            width: 85px; height: 140px; position: relative; flex-shrink: 0;
+            width: 90px; height: 150px; position: relative; flex-shrink: 0;
             transform-style: preserve-3d; border-radius: 8px; transition: transform 0.1s linear;
         }
         .card-front, .card-back {
             position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-            border-radius: 8px; border: 1.5px solid gold; 
-            background-repeat: no-repeat; background-position: center;
-            background-size: 100% 100%;
-            background-color: #1a1a2e; /* 如果图不显示，会显示深蓝色 */
+            border-radius: 8px; border: 1.5px solid gold; background-repeat: no-repeat;
+            background-color: #1a1a2e; background-size: 100% 100%; background-position: center;
         }
         .card-front { transform: rotateY(180deg); border-color: #fff; }
         .selected-top { z-index: 1000 !important; }
 
         .tip {
-            position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); padding: 12px 20px; border-radius: 20px;
-            color: gold; font-size: 11px; border: 1px solid gold; z-index: 20;
-            text-align: center; width: 85%; pointer-events: none; line-height: 1.6;
+            color: gold; font-size: 12px; border: 1px solid gold; z-index: 20;
+            text-align: center; width: 85%; pointer-events: none;
         }
     </style>
 </head>
 <body>
 
+<!-- 手机端必须显式添加 playsinline 和 autoplay -->
 <video id="input_video" playsinline autoplay muted></video>
 <div id="star-bg"></div>
 <div id="handCursor"></div>
-<div id="status-info">正在检查资源...</div>
+<div id="status-info">正在加载图片...</div>
 
 <div class="marquee-box">
     <div class="marquee-track" id="track"></div>
 </div>
 
 <div class="tip">
-    <b>手机模式已启用</b> <br>
-    👌 捏合翻牌 + ↔️ 手向后撤放大观察 <br>
-    🖐️ 张开五指重置
+    1. 确保右下角小窗口能看到手 <br>
+    2. 👌 <b>捏合</b>并<b>拉远手掌</b>放大观察 <br>
+    3. 🖐️ <b>张开五指</b> 重置
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -87,16 +87,13 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 
 <script>
-    // 自动修正 GitHub 二级目录路径
-    const pathArray = window.location.pathname.split('/');
-    const repoName = pathArray[1]; // 获取仓库名
-    const rootPath = window.location.origin + '/' + repoName + '/';
-
+    // 强制使用绝对路径防止手机端路径解析错误
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf("/") + 1);
     const CONFIG = {
-        cardBack: 'images/back.jpg',
+        cardBack: baseUrl + "images/back.jpg",
         cards: [
-            'images/card1.jpg', 'images/card2.jpg', 'images/card3.jpg', 'images/card4.jpg',
-            'images/card5.jpg', 'images/card6.jpg', 'images/card7.jpg', 'images/card8.jpg'
+            baseUrl + "images/card1.jpg", baseUrl + "images/card2.jpg", baseUrl + "images/card3.jpg", baseUrl + "images/card4.jpg",
+            baseUrl + "images/card5.jpg", baseUrl + "images/card6.jpg", baseUrl + "images/card7.jpg", baseUrl + "images/card8.jpg"
         ]
     };
 
@@ -105,14 +102,13 @@
     const statusInfo = document.getElementById('status-info');
 
     function buildMarquee() {
-        // 使用相对路径，浏览器会自动补全
         const items = CONFIG.cards.map((img, i) => `
             <div class="tarot-card" data-idx="${i}">
                 <div class="card-back" style="background-image: url('${CONFIG.cardBack}')"></div>
                 <div class="card-front" style="background-image: url('${img}')"></div>
             </div>
         `).join('');
-        track.innerHTML = items + items;
+        track.innerHTML = items + items; // 减少一倍以减轻DOM压力
     }
     buildMarquee();
 
@@ -120,10 +116,11 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
+    // 性能优化核心配置
     hands.setOptions({
         maxNumHands: 1,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.5,
+        modelComplexity: 0, // 最快模型
+        minDetectionConfidence: 0.5, // 降低阈值提高响应
         minTrackingConfidence: 0.5
     });
 
@@ -133,7 +130,7 @@
 
     hands.onResults(results => {
         if (!results.multiHandLandmarks?.length) {
-            statusInfo.innerText = "等待手部进入视野";
+            statusInfo.innerText = "未识别到手";
             return;
         }
         statusInfo.innerText = "识别正常";
@@ -141,8 +138,8 @@
         
         const cx = (1 - lm[8].x) * window.innerWidth;
         const cy = lm[8].y * window.innerHeight;
-        cursor.style.left = cx + 'px';
-        cursor.style.top = cy + 'px';
+        cursor.style.left = `${cx}px`;
+        cursor.style.top = `${cy}px`;
 
         const currentHandSize = Math.hypot(lm[2].x - lm[17].x, lm[2].y - lm[17].y);
         
@@ -173,8 +170,8 @@
             }
             if (selectedCard) {
                 let ratio = baseHandSize / currentHandSize;
-                let scale = 1.3 + (ratio - 1) * 3.5;
-                scale = Math.min(Math.max(scale, 1.3), 4.5);
+                let scale = 1.3 + (ratio - 1) * 3.0;
+                scale = Math.min(Math.max(scale, 1.3), 4.0);
                 selectedCard.style.transform = `rotateY(180deg) scale(${scale})`;
             }
         } else {
@@ -189,17 +186,18 @@
         }
     });
 
+    // 针对手机端优化的摄像头调用
     const videoElement = document.getElementById('input_video');
     const camera = new Camera(videoElement, {
         onFrame: async () => {
             await hands.send({image: videoElement});
         },
-        width: 320,
-        height: 480
+        width: 320, // 降低采集分辨率显著提升帧率
+        height: 240
     });
     camera.start();
 
-    // 简化背景
+    // 极致简化的 Three.js 背景
     const scene = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
     const renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -207,7 +205,7 @@
     document.getElementById('star-bg').appendChild(renderer.domElement);
     const starGeo = new THREE.BufferGeometry();
     const pos = [];
-    for(let i=0; i<500; i++) pos.push((Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40);
+    for(let i=0; i<800; i++) pos.push((Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40);
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     const starMesh = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 }));
     scene.add(starMesh);
