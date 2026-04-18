@@ -3,35 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>塔罗拉远放大 - 移动适配版</title>
+    <title>塔罗拉远 - 手机极速版</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
-        body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; color: #fff; width: 100vw; height: 100vh; }
+        body { background: #000; overflow: hidden; font-family: sans-serif; width: 100vw; height: 100vh; }
         
-        #input_video { display: none; position: fixed; }
+        /* 关键：给视频流留一个小窗口，方便用户看到手是否进画面，提高成功率 */
+        #input_video { 
+            position: fixed; bottom: 10px; right: 10px; width: 80px; height: 60px; 
+            border: 1px solid gold; border-radius: 4px; z-index: 1000; transform: scaleX(-1);
+            background: #222;
+        }
+
         #star-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; }
 
         /* 状态指示 */
         #status-info {
-            position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.6);
-            padding: 6px 10px; border-radius: 5px; font-size: 11px; color: #0f0; z-index: 999;
+            position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.7);
+            padding: 5px 10px; border-radius: 5px; font-size: 10px; color: #0f0; z-index: 1001;
         }
 
-        /* 手部光标 */
         #handCursor {
-            position: fixed; width: 18px; height: 18px; border-radius: 50%;
-            background: rgba(255,215,0,0.8); box-shadow: 0 0 15px gold;
+            position: fixed; width: 15px; height: 15px; border-radius: 50%;
+            background: gold; box-shadow: 0 0 10px gold;
             pointer-events: none; z-index: 9999; transform: translate(-50%, -50%);
-            border: 2px solid #fff; transition: width 0.2s, height 0.2s;
+            border: 1.5px solid #fff;
         }
 
-        /* 跑马灯盒 */
         .marquee-box {
-            position: absolute; top: 45%; left: 0; width: 100%; height: 280px;
+            position: absolute; top: 40%; left: 0; width: 100%; height: 220px;
             transform: translateY(-50%); display: flex; align-items: center; overflow: visible;
         }
         .marquee-track {
-            display: flex; gap: 30px; animation: marquee 25s linear infinite; padding: 0 50px;
+            display: flex; gap: 20px; animation: marquee 20s linear infinite; padding: 0 50px;
         }
         .track-paused { animation-play-state: paused !important; }
 
@@ -40,53 +44,42 @@
             100% { transform: translateX(-50%); }
         }
 
-        /* 默认卡牌尺寸 (桌面) */
         .tarot-card {
-            width: 140px; height: 230px; position: relative; flex-shrink: 0;
-            transform-style: preserve-3d; border-radius: 10px; transition: transform 0.1s linear;
+            width: 90px; height: 150px; position: relative; flex-shrink: 0;
+            transform-style: preserve-3d; border-radius: 8px; transition: transform 0.1s linear;
         }
-
-        /* 手机端卡牌尺寸适配 */
-        @media (max-width: 768px) {
-            .tarot-card { width: 100px; height: 165px; }
-            .marquee-box { height: 200px; }
-            .marquee-track { gap: 20px; }
-            .tip { font-size: 12px !important; padding: 12px 20px !important; width: 90% !important; bottom: 20px !important; }
-        }
-
         .card-front, .card-back {
             position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-            border-radius: 10px; display: flex; align-items: center; justify-content: center;
-            border: 1.5px solid gold; background-repeat: no-repeat; background-color: #1a1a2e;
-            background-size: 100% 100%; background-position: center;
+            border-radius: 8px; border: 1.5px solid gold; background-repeat: no-repeat;
+            background-color: #1a1a2e; background-size: 100% 100%; background-position: center;
         }
         .card-front { transform: rotateY(180deg); border-color: #fff; }
-        .card-focus { transform: scale(1.1); box-shadow: 0 0 25px gold; z-index: 5; }
         .selected-top { z-index: 1000 !important; }
 
         .tip {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 30px;
-            color: gold; font-size: 14px; border: 1px solid gold; z-index: 20; text-align: center;
-            width: 80%; line-height: 1.5; pointer-events: none;
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); padding: 12px 20px; border-radius: 20px;
+            color: gold; font-size: 12px; border: 1px solid gold; z-index: 20;
+            text-align: center; width: 85%; pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-<video id="input_video" playsinline></video>
+<!-- 手机端必须显式添加 playsinline 和 autoplay -->
+<video id="input_video" playsinline autoplay muted></video>
 <div id="star-bg"></div>
 <div id="handCursor"></div>
-<div id="status-info">模型加载中...</div>
+<div id="status-info">正在加载图片...</div>
 
 <div class="marquee-box">
     <div class="marquee-track" id="track"></div>
 </div>
 
 <div class="tip">
-    👋 <b>前置摄像头</b>对准手掌 <br>
-    👌 <b>捏合翻牌</b> 并 <b>向后移手</b> 放大 <br>
-    🖐️ <b>张开五指</b> 重置
+    1. 确保右下角小窗口能看到手 <br>
+    2. 👌 <b>捏合</b>并<b>拉远手掌</b>放大观察 <br>
+    3. 🖐️ <b>张开五指</b> 重置
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -94,14 +87,13 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 
 <script>
-    // 检查是否为移动端
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
+    // 强制使用绝对路径防止手机端路径解析错误
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf("/") + 1);
     const CONFIG = {
-        cardBack: "images/back.jpg",
+        cardBack: baseUrl + "images/back.jpg",
         cards: [
-            "images/card1.jpg", "images/card2.jpg", "images/card3.jpg", "images/card4.jpg",
-            "images/card5.jpg", "images/card6.jpg", "images/card7.jpg", "images/card8.jpg"
+            baseUrl + "images/card1.jpg", baseUrl + "images/card2.jpg", baseUrl + "images/card3.jpg", baseUrl + "images/card4.jpg",
+            baseUrl + "images/card5.jpg", baseUrl + "images/card6.jpg", baseUrl + "images/card7.jpg", baseUrl + "images/card8.jpg"
         ]
     };
 
@@ -116,7 +108,7 @@
                 <div class="card-front" style="background-image: url('${img}')"></div>
             </div>
         `).join('');
-        track.innerHTML = items + items + items;
+        track.innerHTML = items + items; // 减少一倍以减轻DOM压力
     }
     buildMarquee();
 
@@ -124,12 +116,12 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
-    // 移动端优化：降低模型复杂度提升帧率
+    // 性能优化核心配置
     hands.setOptions({
         maxNumHands: 1,
-        modelComplexity: isMobile ? 0 : 1, 
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
+        modelComplexity: 0, // 最快模型
+        minDetectionConfidence: 0.5, // 降低阈值提高响应
+        minTrackingConfidence: 0.5
     });
 
     let selectedCard = null;
@@ -144,7 +136,6 @@
         statusInfo.innerText = "识别正常";
         const lm = results.multiHandLandmarks[0];
         
-        // 坐标适配屏幕
         const cx = (1 - lm[8].x) * window.innerWidth;
         const cy = lm[8].y * window.innerHeight;
         cursor.style.left = `${cx}px`;
@@ -152,15 +143,14 @@
 
         const currentHandSize = Math.hypot(lm[2].x - lm[17].x, lm[2].y - lm[17].y);
         
-        let hovered = null;
         if (!selectedCard) {
             document.querySelectorAll('.tarot-card').forEach(card => {
                 const r = card.getBoundingClientRect();
                 if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
-                    hovered = card;
-                    card.classList.add('card-focus');
+                    card.style.transform = "scale(1.1)";
+                    window.hovered = card;
                 } else {
-                    card.classList.remove('card-focus');
+                    card.style.transform = "";
                 }
             });
         }
@@ -168,76 +158,60 @@
         const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y); 
         const palmOpenDist = Math.hypot(lm[8].x - lm[0].x, lm[8].y - lm[0].y);
 
-        if (pinchDist < 0.05) {
+        if (pinchDist < 0.06) {
             if (!isPinching) {
                 isPinching = true;
                 baseHandSize = currentHandSize;
-                if (hovered && !selectedCard) {
-                    selectedCard = hovered;
+                if (window.hovered && !selectedCard) {
+                    selectedCard = window.hovered;
                     selectedCard.classList.add('selected-top');
                     track.classList.add('track-paused');
                 }
             }
             if (selectedCard) {
                 let ratio = baseHandSize / currentHandSize;
-                // 手机端屏幕小，拉远放大的倍率可以稍微设大一点
-                let scale = 1.3 + (ratio - 1) * 3.5;
-                scale = Math.min(Math.max(scale, 1.3), 4.5);
+                let scale = 1.3 + (ratio - 1) * 3.0;
+                scale = Math.min(Math.max(scale, 1.3), 4.0);
                 selectedCard.style.transform = `rotateY(180deg) scale(${scale})`;
-                cursor.style.background = "#00ff00";
             }
         } else {
             isPinching = false;
-            if (selectedCard) {
-                selectedCard.style.transform = `rotateY(180deg) scale(1.3)`;
-                cursor.style.background = "rgba(255,215,0,0.8)";
-            }
         }
 
         if (palmOpenDist > 0.3 && selectedCard) {
             selectedCard.classList.remove('selected-top');
-            selectedCard.style.transform = "rotateY(0deg) scale(1)";
+            selectedCard.style.transform = "";
             selectedCard = null;
             track.classList.remove('track-paused');
         }
     });
 
-    // 摄像头启动适配移动端
-    const camera = new Camera(document.getElementById('input_video'), {
+    // 针对手机端优化的摄像头调用
+    const videoElement = document.getElementById('input_video');
+    const camera = new Camera(videoElement, {
         onFrame: async () => {
-            await hands.send({image: document.getElementById('input_video')});
+            await hands.send({image: videoElement});
         },
-        width: 480,
-        height: 640,
-        facingMode: 'user' // 强制调用前置摄像头
+        width: 320, // 降低采集分辨率显著提升帧率
+        height: 240
     });
-    camera.start().catch(err => {
-        statusInfo.innerText = "摄像头开启失败，请检查权限";
-        statusInfo.style.color = "red";
-    });
+    camera.start();
 
-    // 背景星空
+    // 极致简化的 Three.js 背景
     const scene = new THREE.Scene();
-    const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
     const renderer = new THREE.WebGLRenderer({ alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio); // 适配视网膜屏
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.getElementById('star-bg').appendChild(renderer.domElement);
     const starGeo = new THREE.BufferGeometry();
     const pos = [];
-    for(let i=0; i<2000; i++) pos.push((Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40);
+    for(let i=0; i<800; i++) pos.push((Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40);
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    const starMesh = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.02 }));
+    const starMesh = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 }));
     scene.add(starMesh);
     cam.position.z = 5;
-    function animate() { requestAnimationFrame(animate); starMesh.rotation.y += 0.0006; renderer.render(scene, cam); }
+    function animate() { requestAnimationFrame(animate); starMesh.rotation.y += 0.001; renderer.render(scene, cam); }
     animate();
-
-    window.onresize = () => {
-        cam.aspect = window.innerWidth / window.innerHeight;
-        cam.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    };
 </script>
 </body>
 </html>
