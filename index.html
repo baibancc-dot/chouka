@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>开面 - 全端完美版</title>
+    <!-- 程序名称：开面 -->
+    <title>开面</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
-        body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; color: #fff; width: 100vw; height: 100vh; }
+        body { background: #000; overflow: hidden; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #fff; width: 100vw; height: 100vh; }
         
         /* 视频：PC隐藏，手机小窗口预览 */
         #input_video { 
@@ -31,11 +32,11 @@
             border: 2px solid #fff; transition: width 0.2s, height 0.2s, background 0.2s;
         }
 
-        /* 跑马灯盒：这是保证不被裁剪的关键 */
+        /* 跑马灯盒 */
         .marquee-box {
             position: absolute; top: 50%; left: 0; width: 100%; height: 350px;
             transform: translateY(-50%); display: flex; align-items: center; 
-            overflow: visible; /* 允许卡牌放大后超出盒子边界显示 */
+            overflow: visible; 
         }
         .marquee-track {
             display: flex; gap: 50px; animation: marquee 35s linear infinite; padding: 0 100px;
@@ -51,38 +52,41 @@
         .tarot-card {
             width: 160px; height: 260px; position: relative; flex-shrink: 0;
             transform-style: preserve-3d; border-radius: 12px;
-            transition: transform 0.15s linear; /* 缩放跟随感 */
+            transition: transform 0.15s linear;
         }
 
-        /* 手机端自动缩小尺寸 */
+        /* 手机端尺寸适配 */
         @media (max-width: 768px) {
             .tarot-card { width: 105px; height: 170px; }
             .marquee-box { height: 240px; }
             .marquee-track { gap: 20px; }
             #input_video { display: block; }
-            .tip { font-size: 12px !important; bottom: 20px !important; }
+            .tip { font-size: 12px !important; bottom: 20px !important; padding: 12px 20px !important; }
         }
 
         .card-front, .card-back {
             position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
             border-radius: 10px; display: flex; align-items: center; justify-content: center;
             border: 2px solid gold; background-repeat: no-repeat; background-color: #1a1a2e;
-            background-size: 100% 100%; /* 保证图片完整填充，不被裁剪边缘 */
+            background-size: 100% 100%; 
             background-position: center;
+            font-weight: bold;
+            color: gold;
+            letter-spacing: 4px;
         }
-        .card-front { transform: rotateY(180deg); border-color: #fff; }
+        .card-front { transform: rotateY(180deg); border-color: #fff; color: #fff; }
         
-        /* 瞄准时的微增效果 */
+        /* 瞄准与选中状态 */
         .card-aimed { transform: scale(1.15); box-shadow: 0 0 30px gold; z-index: 10; }
-        
-        /* 选中并放大时的最高优先级 */
         .selected-top { z-index: 1000 !important; }
 
+        /* 底部提示 */
         .tip {
             position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 40px;
             color: gold; font-size: 14px; border: 1px solid gold; z-index: 20; 
             text-align: center; width: 85%; max-width: 550px; line-height: 1.6;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -98,8 +102,8 @@
 </div>
 
 <div class="tip">
-    👌 <b>捏合</b> 并 <b>向后撤手(拉远)</b> 放大看细节 <br>
-    🖐️ <b>张开五指</b> 将卡牌放回并恢复滚动
+    👌 <b>捏合</b> 进行“开面” <br>
+    ↔️ <b>向后拉远手掌</b> 放大观察 | 🖐️ <b>张开五指</b> 重置归位
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -109,7 +113,7 @@
 <script>
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     
-    // 图片路径配置
+    // 图片配置
     const CONFIG = {
         cardBack: "images/back.jpg",
         cards: [
@@ -126,7 +130,7 @@
     function buildMarquee() {
         const items = CONFIG.cards.map((img, i) => `
             <div class="tarot-card" data-idx="${i}">
-                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')"></div>
+                <div class="card-back" style="background-image: url('${CONFIG.cardBack}')">${img ? '' : '开面'}</div>
                 <div class="card-front" style="background-image: url('${img}')"></div>
             </div>
         `).join('');
@@ -139,7 +143,6 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
-    // 智能模型分级：PC用1级精度，手机用0级速度
     hands.setOptions({
         maxNumHands: 1,
         modelComplexity: isMobile ? 0 : 1,
@@ -153,19 +156,17 @@
 
     hands.onResults(results => {
         if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-            statusInfo.innerText = "未检测到手部";
+            statusInfo.innerText = "等待识别";
             return;
         }
-        statusInfo.innerText = "手势识别中";
+        statusInfo.innerText = "就绪";
         const lm = results.multiHandLandmarks[0];
         
-        // 坐标计算
         const cx = (1 - lm[8].x) * window.innerWidth;
         const cy = lm[8].y * window.innerHeight;
         cursor.style.left = `${cx}px`;
         cursor.style.top = `${cy}px`;
 
-        // 手掌深度基准（用腕部到食指根部的长度）
         const currentHandSize = Math.hypot(lm[0].x - lm[5].x, lm[0].y - lm[5].y);
         
         let hovered = null;
@@ -189,28 +190,22 @@
         const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y); 
         const palmOpenDist = Math.hypot(lm[8].x - lm[0].x, lm[8].y - lm[0].y);
 
-        // --- 核心交互逻辑 ---
-        
-        // 1. 捏合翻牌
         if (pinchDist < 0.045) {
             if (!isPinching) {
                 isPinching = true;
-                baseHandSize = currentHandSize; // 锁定捏合瞬间深度
+                baseHandSize = currentHandSize;
                 
                 if (hovered && !selectedCard) {
                     selectedCard = hovered;
                     selectedCard.classList.add('selected-top');
-                    track.classList.add('track-paused'); // 停止跑马灯，防脱勾
+                    track.classList.add('track-paused'); 
                 }
             }
 
-            // 2. 捏合后拉远放大（捏住不放时）
             if (selectedCard) {
-                let ratio = baseHandSize / currentHandSize; // 手变小，比例变大
-                
-                // 优化后的放大感：PC端可以放大到 4.5 倍
+                let ratio = baseHandSize / currentHandSize;
                 let targetScale = 1.3 + (ratio - 1) * 3.5;
-                targetScale = Math.max(1.3, Math.min(targetScale, isMobile ? 4.0 : 4.8));
+                targetScale = Math.max(1.3, Math.min(targetScale, 4.8));
 
                 selectedCard.style.transform = `rotateY(180deg) scale(${targetScale})`;
                 cursor.style.background = "lime";
@@ -218,18 +213,16 @@
         } else {
             isPinching = false;
             if (selectedCard) {
-                // 捏合松开但未张开手，保持翻转态
                 selectedCard.style.transform = `rotateY(180deg) scale(1.3)`;
                 cursor.style.background = "rgba(255,215,0,0.8)";
             }
         }
 
-        // 3. 张开五指重置
         if (palmOpenDist > 0.35 && selectedCard) {
             selectedCard.classList.remove('selected-top');
             selectedCard.style.transform = "rotateY(0deg) scale(1)";
             selectedCard = null;
-            track.classList.remove('track-paused'); // 跑马灯继续
+            track.classList.remove('track-paused');
             cursor.style.background = "rgba(255,215,0,0.8)";
         }
     });
@@ -241,7 +234,7 @@
     });
     camera.start();
 
-    // 背景星空 (PC端保持 2500 粒，手机降级)
+    // 背景渲染
     const scene = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
     const renderer = new THREE.WebGLRenderer({ alpha: true });
